@@ -1,19 +1,20 @@
-from e_commerce import Amazon
+from e_commerce import Amazon, Ebay
 from store_data import Data
 import time
 
-start_time = time.time()
-header = ['Description', 'Price', 'Rating', 'ReviewCount', 'Url']
-product_name = "ultrawide monitor"
-amazon = Amazon()
+amazon_header = ['Description', 'Price', 'Rating', 'ReviewCount', 'Url']
+ebay_header = ['Title', 'SubTitle', 'Rating', 'ItemPrice', 'TrendingPrice', 'ItemLink']
+
+product_name = "dell laptop"
+# amazon = Amazon()
+ebay = Ebay()
+
 data = Data()
 
-result = amazon.scrape_amazon("ultrawide monitor")
-save_to_csv = data.save_to_csv("ultrawide monitor", header, result)
+result = ebay.scrape_ebay(product_name)
+save_to_csv = data.save_to_csv(product_name, ebay_header, result)
 
 end_time = time.time()
 
-elapsed_time = end_time - start_time
-print(f"Total execution time: {elapsed_time:.4f} seconds")
 
 

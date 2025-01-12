@@ -3,7 +3,8 @@ from selenium import webdriver
 from selenium.common.exceptions import *
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from store_data import Data
+import requests
+from lxml import html
 
 
 class Amazon:
@@ -95,3 +96,65 @@ class Amazon:
             next_page_url = self.next_page(driver)
 
         return records
+
+# ************************************************************
+class Ebay:
+    def __init__(self):
+        self.url = "https://www.ebay.com/sch/i.html?&_nkw={}"
+
+    def get_page_items(self, tree) -> list:
+        container = tree.xpath("//ul[contains(@class, 'srp-results')]")
+        if container:
+            return container[0].xpath(".//li[contains(@class, 's-item')]")
+        else:
+            return []
+
+    def create_search_record(self, item):
+        title = "".join(item.xpath(".//div[@class='s-item__title']/span/text()"))
+        sub_title = "".join(item.xpath(".//div[@class='s-item__subtitle']/text()"))
+        sub_title += " " + "".join(
+            item.xpath(".//div[@class='s-item__subtitle']//span[@class='SECONDARY_INFO']/text()"))
+
+        rating = "".join(item.xpath(".//div[@class='x-star-rating']//span[@class='clipped']/text()"))
+        rating = "None" if not rating else rating
+
+        item_price = item.xpath(".//span[@class='s-item__price']/text()")
+        item_price = " to ".join(item_price) if len(item_price) > 1 else "".join(item_price)
+
+        trending_price = "".join(
+            item.xpath(".//span[@class='s-item__additional-price']/span[@class='STRIKETHROUGH']/text()"))
+        trending_price = "None" if not trending_price else trending_price
+
+        item_link = "".join(item.xpath(".//a[@class='s-item__link']/@href"))
+        return title, sub_title, rating, item_price, trending_price, item_link
+
+    def get_next_page(self, tree):
+        return "".join(tree.xpath("//a[@class='pagination__next icon-link']/@href"))
+
+    def scrape_ebay(self, keywords: str) -> list:
+        url = self.url.format(keywords.replace(" ", "+"))
+        response = requests.get(url)
+
+        etree = html.fromstring(response.text)
+        page_data = []
+
+        # get remaining pages if existing
+        while True:
+            items = self.get_page_items(etree)
+            if not items:
+                break
+
+            for item in items:
+                page_data.append(self.create_search_record(item))
+
+            next_page = self.get_next_page(etree)
+            if not next_page:
+                break
+
+            response = requests.get(next_page)
+            if response.status_code != 200:
+                break
+
+            etree = html.fromstring(response.text)
+
+        return page_data
