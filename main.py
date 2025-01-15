@@ -1,20 +1,16 @@
-from e_commerce import Amazon, Ebay
-from store_data import Data
+from e_commerce import Amazon, Ebay, Target
+from store_data import DataSaving
 import time
 
-amazon_header = ['Description', 'Price', 'Rating', 'ReviewCount', 'Url']
-ebay_header = ['Title', 'SubTitle', 'Rating', 'ItemPrice', 'TrendingPrice', 'ItemLink']
 
 product_name = "dell laptop"
-# amazon = Amazon()
+amazon = Amazon()
 ebay = Ebay()
+target = Target()
 
-data = Data()
+data = DataSaving()
 
-result = ebay.scrape_ebay(product_name)
-save_to_csv = data.save_to_csv(product_name, ebay_header, result)
-
-end_time = time.time()
-
-
+# save_amazon_to_csv = data.save_to_csv(product_name, amazon.header_row, amazon.scrape_amazon(product_name))
+# save_ebay_to_csv = data.save_to_csv(product_name, ebay.header_row, ebay.scrape_ebay(product_name))
+save_target_to_csv = data.save_to_csv(product_name, target.header_row, target.scrape_target(product_name))
 

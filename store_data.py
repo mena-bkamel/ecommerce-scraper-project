@@ -1,7 +1,7 @@
 import csv
 
 
-class Data:
+class DataSaving:
     def __init__(self):
         ...
 
