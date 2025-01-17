@@ -11,17 +11,9 @@ from webdriver import Webdriver
 class Amazon:
     def __init__(self):
         self.base_url = 'https://www.amazon.com'
-        self.header_row = ['Description', 'Price', 'Rating', 'ReviewCount', 'Url', "WebsiteSource"]
         self.website_source = "Amazon"
         self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.5938.132 Safari/537.36"
-
-    def initialize_driver(self) -> webdriver:
-        """Initialize and return a Chrome WebDriver instance."""
-        chrome_options = webdriver.ChromeOptions()
-        chrome_options.add_argument(f"user-agent={self.user_agent}")
-        chrome_options.add_experimental_option("detach", True)
-        driver = webdriver.Chrome(options=chrome_options)
-        return driver
+        self.webdriver = Webdriver()
 
     def construct_search_url(self, search_text: str) -> str:
         """Construct the search URL for the given search term."""
@@ -67,11 +59,10 @@ class Amazon:
 
         records = list()
         url = self.construct_search_url(search_term)
-        driver = self.initialize_driver()
+        driver = self.webdriver.initialize_driver(self.user_agent)
 
         try:
             driver.get(url)
-
             while url:
                 soup = BeautifulSoup(driver.page_source, 'html.parser')
                 results = soup.find_all('div', {'data-component-type': 's-search-result'})
@@ -93,16 +84,14 @@ class Amazon:
 
         return records
 
-# ************************************************************
+
 class Ebay:
     def __init__(self):
         self.base_url = "https://www.ebay.com/sch/i.html?&_nkw={}"
-        self.header_row = ['Title', 'SubTitle', 'Rating', 'ItemPrice', 'TrendingPrice', 'ItemLink', 'WebsiteSource']
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.5938.132 Safari/537.36'
         }
         self.website_source = "Ebay"
-
 
     def get_page_items(self, tree) -> list:
         return tree.xpath("//ul[contains(@class, 'srp-results')]/li[contains(@class, 's-item')]") or []
@@ -156,8 +145,8 @@ class Ebay:
 class Target:
     def __init__(self):
         self.URL = "https://www.target.com/s?searchTerm={}"
-        self.header_row = ["Description", "Price", "ReviewCount", "Url", "Website Source"]
         self.website_source = "Target"
+        self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.5938.132 Safari/537.36"
         self.webdriver = Webdriver()
 
     def get_page_items(self, tree) -> list:
@@ -192,7 +181,7 @@ class Target:
 
     def scrape_target(self, keywords: str):
         url = self.URL.format(keywords.replace(" ", "-"))
-        driver = self.webdriver.chrome_webdriver()
+        driver = self.webdriver.initialize_driver(self.user_agent)
         driver.get(url)
 
         WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div")))
@@ -201,7 +190,6 @@ class Target:
         page_data = list()
         num_pages = self.get_number_of_pages(tree)
         nao_query = 0
-
 
         for num in range(num_pages):
             items = self.get_page_items(tree)

@@ -1,17 +1,18 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
 
 
 class Webdriver:
     def __init__(self):
         self.chromedriver_path = r"F:\chromedriver-win64\chromedriver.exe"
 
-    def chrome_webdriver(self):
+    def initialize_driver(self, user_agent) -> webdriver:
+        """Initialize and return a Chrome WebDriver instance."""
         chrome_options = webdriver.ChromeOptions()
+        chrome_options.add_argument(f"user-agent={user_agent}")
         chrome_options.add_experimental_option("detach", True)
-        driver = webdriver.Chrome()
+        driver = webdriver.Chrome(options=chrome_options)
         return driver
 
     def setup_headless_driver(self):
