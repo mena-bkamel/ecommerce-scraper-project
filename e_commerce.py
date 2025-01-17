@@ -7,7 +7,7 @@ from selenium.common.exceptions import *
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
+from webdriver import Webdriver
 class Amazon:
     def __init__(self):
         self.base_url = 'https://www.amazon.com'
@@ -152,18 +152,13 @@ class Ebay:
                 continue
         return page_data
 
-# *********************************************************************************************
+
 class Target:
     def __init__(self):
         self.URL = "https://www.target.com/s?searchTerm={}"
         self.header_row = ["Description", "Price", "ReviewCount", "Url", "Website Source"]
         self.website_source = "Target"
-
-    def chrome_webdriver(self):
-        # chrome_options = webdriver.ChromeOptions()
-        # chrome_options.add_experimental_option("detach", True)
-        driver = webdriver.Chrome()
-        return driver
+        self.webdriver = Webdriver()
 
     def get_page_items(self, tree) -> list:
         container = tree.xpath("//section[contains(@class, 'sc-e0eaa558-1 haoIOG')]")
@@ -186,31 +181,27 @@ class Target:
         while True:
             driver.execute_script(f"window.scrollBy(0, {scroll_amount});")
             time.sleep(0.2)
-
             scroll_position = driver.execute_script("return window.pageYOffset + window.innerHeight")
             page_height = driver.execute_script("return document.body.scrollHeight")
             if scroll_position >= page_height:
                 break
 
     def get_number_of_pages(self, tree) -> int:
-        try:
             num_pages = "".join(tree.xpath('//*[@id="select-custom-button-id"]/span/text()')).split()[3]
             return int(num_pages)
-        except (IndexError, ValueError) as e:
-            return e
 
     def scrape_target(self, keywords: str):
         url = self.URL.format(keywords.replace(" ", "-"))
-        driver = self.chrome_webdriver()
+        driver = self.webdriver.chrome_webdriver()
         driver.get(url)
 
         WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div")))
         self.scroll_the_page(driver)
         tree = html.fromstring(driver.page_source)
         page_data = list()
-
         num_pages = self.get_number_of_pages(tree)
         nao_query = 0
+
 
         for num in range(num_pages):
             items = self.get_page_items(tree)
