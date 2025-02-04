@@ -1,19 +1,25 @@
-from e_commerce import Amazon, Ebay, Target
-from store_data import DataSaving
-import time
+from e_commerce import Amazon, Ebay
+from formating import ProductFormat
+from store_data import SaveData
 
+search_key = "dell laptop"
 
-product_name = "dell laptop"
 amazon = Amazon()
 ebay = Ebay()
-target = Target()
+store_data = SaveData()
+amazon_record = amazon.scrape_amazon(search_key)
+ebay_record = ebay.scrape_ebay(search_key)
 
-data = DataSaving()
 
-# save_amazon_to_csv = data.save_to_csv(product_name, amazon.header_row, amazon.scrape_amazon(product_name))
-# save_ebay_to_csv = data.save_to_csv(product_name, ebay.header_row, ebay.scrape_ebay(product_name))
-# save_target_to_csv = data.save_to_csv(product_name, target.header_row, target.scrape_target(product_name))
+def save_to_sqlite_db(data: list[tuple]):
+    product_format = ProductFormat(product_name="str", price="float", url="str", platform="str")
+    columns_db = product_format.format_columns_db().col_definition_db
+    db_name, table_name, columns_list = store_data.create_db("multiple_ecommerce", "products", columns_db)
+    store_data.insert_records(db_name, table_name, columns_list, data)
 
-records = target.scrape_target(product_name)
-db_name, table_name, col_names = data.create_db()
 
+if __name__ == '__main__':
+    all_products = amazon_record + ebay_record
+    save_to_sqlite_db(all_products)
+    store_data.save_to_csv('multiple_ecommerce', amazon.header_row, all_products)
+    store_data.save_to_json("multiple_ecommerce", amazon.header_row, all_products)

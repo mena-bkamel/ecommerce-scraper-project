@@ -1,19 +1,50 @@
+import re
 import time
+
 import requests
 from bs4 import BeautifulSoup
 from lxml import html
 from selenium import webdriver
 from selenium.common.exceptions import *
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+
 from webdriver import Webdriver
+
+
+def is_valid_price(price: str) -> bool:
+    """
+    Checks if the provided price string contains a valid price in the format "$<amount>".
+
+    Args:
+        price (str): The price string to validate.
+
+    Returns:
+        bool: True if the price string is valid and greater than 200, False otherwise.
+    """
+    try:
+        # Use regular expression to match the price format
+        match = re.match(r"^\$\d+(?:\.\d+)?$", price)
+        if match:
+            price_value = float(match.group(0)[1:])
+            return price_value > 200
+        return False
+
+    except ValueError as e:
+        print(f"Error: {e}")
+        return False
+
 class Amazon:
     def __init__(self):
         self.base_url = 'https://www.amazon.com'
         self.website_source = "Amazon"
         self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.5938.132 Safari/537.36"
         self.webdriver = Webdriver()
+        self.header_row = ["ProductName", "Price", "Rating", "ReviewCount", "Url", "Platform"]
+
+    # filter by price
+
 
     def construct_search_url(self, search_text: str) -> str:
         """Construct the search URL for the given search term."""
@@ -33,7 +64,7 @@ class Amazon:
         """Extract and return data from a single record"""
         a_tag = item.find('a', class_='a-link-normal s-line-clamp-2 s-link-style a-text-normal')
         url = f"{self.base_url}{a_tag.get('href')}" if a_tag else "N/A"
-        description = item.h2.text
+        name = item.find("h2", {"class": "a-size-medium a-spacing-none a-color-base a-text-normal"}).text
 
         try:
             price = item.find('span', 'a-price')
@@ -41,25 +72,17 @@ class Amazon:
         except AttributeError:
             return "N/A"
 
-        try:
-            rating = item.i.text if item.i else "N/A"
-            review_count = item.find('span', {'class': 'a-size-base s-underline-text'})
-            review_count = review_count.text if review_count else "N/A"
+        return name, price, url, self.website_source
 
-        except AttributeError:
-            rating = "N/A"
-            review_count = "N/A"
-
-        result = (description, price, rating, review_count, url, self.website_source)
-
-        return result
-
-    def scrape_amazon(self, search_term: str) -> list[tuple]:
+    def scrape_amazon(self, search_term: str, headless=False) -> list[tuple]:
         """Scrape Amazon for the given search term."""
 
         records = list()
         url = self.construct_search_url(search_term)
-        driver = self.webdriver.initialize_driver(self.user_agent)
+        if headless:
+            driver = self.webdriver.initialize_driver(self.user_agent)
+        else:
+            driver = self.webdriver.setup_headless_driver()
 
         try:
             driver.get(url)
@@ -68,7 +91,7 @@ class Amazon:
                 results = soup.find_all('div', {'data-component-type': 's-search-result'})
                 for item in results:
                     record = self.extract_record(item)
-                    if record:
+                    if is_valid_price(record[1]):
                         records.append(record)
 
                 url = self.get_next_page_url(driver)
@@ -92,27 +115,29 @@ class Ebay:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.5938.132 Safari/537.36'
         }
         self.website_source = "Ebay"
+        self.header_row = ["ProductName", "SubTiltle", "Rating", "Price", "trendingPrice", "Url", "Platform"]
 
     def get_page_items(self, tree) -> list:
         return tree.xpath("//ul[contains(@class, 'srp-results')]/li[contains(@class, 's-item')]") or []
 
     def create_search_record(self, item):
-        title = "".join(item.xpath(".//div[@class='s-item__title']/span/text()")).strip()
-        sub_title = "".join(item.xpath(".//div[@class='s-item__subtitle']/text()")).strip()
 
-        sub_title += " " + "".join(
-            item.xpath(".//div[@class='s-item__subtitle']//span[@class='SECONDARY_INFO']/text()"))
+        try:
+            title = item.xpath(".//div[@class='s-item__title']/span/text()")
+            title = "".join(title).strip() if title else "N/A"
 
-        rating = "".join(item.xpath(".//div[@class='x-star-rating']//span[@class='clipped']/text()")).strip() or "N/A"
+            item_price = item.xpath(".//span[@class='s-item__price']/text()")
+            item_price = "".join(item_price[1]) if len(item_price) > 1 else "".join(item_price).strip()
 
-        item_price = item.xpath(".//span[@class='s-item__price']/text()")
-        item_price = " to ".join(item_price) if len(item_price) > 1 else "".join(item_price).strip()
+            item_link = item.xpath(".//a[@class='s-item__link']/@href")
+            item_link = "".join(item_link).strip() if item_link else "N/A"
+            return title, item_price, item_link, self.website_source
 
-        trending_price = "".join(
-            item.xpath(".//span[@class='s-item__additional-price']/span[@class='STRIKETHROUGH']/text()")).strip() or "N/A"
+        except Exception as e:
 
-        item_link = "".join(item.xpath(".//a[@class='s-item__link']/@href")).strip()
-        return title, sub_title, rating, item_price, trending_price, item_link, self.website_source
+            print(f"Error occurred while creating search record: {e}")
+            return "N/A", "N/A", "N/A", self.website_source
+
 
     def get_next_page(self, tree):
         return "".join(tree.xpath("//a[@class='pagination__next icon-link']/@href")).strip() or None
@@ -122,7 +147,6 @@ class Ebay:
         page_data = list()
 
         while search_url:
-
             try:
                 response = requests.get(search_url, timeout=50)
                 response.raise_for_status()
@@ -132,7 +156,8 @@ class Ebay:
                 for item in items:
                     record = self.create_search_record(item)
                     if record:
-                        page_data.append(record)
+                        if is_valid_price(record[1]):
+                            page_data.append(record)
 
                 search_url = self.get_next_page(etree)
                 print(search_url)
@@ -148,6 +173,8 @@ class Target:
         self.website_source = "Target"
         self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.5938.132 Safari/537.36"
         self.webdriver = Webdriver()
+        self.header_row = ["ProductName", "Price", "Rating", "Url", "Platform"]
+
 
     def get_page_items(self, tree) -> list:
         container = tree.xpath("//section[contains(@class, 'sc-e0eaa558-1 haoIOG')]")
@@ -157,13 +184,23 @@ class Target:
             return []
 
     def create_search_record(self, item):
-        description = "".join(item.xpath(".//div[@class='styles_truncate__Eorq7 sc-4d32bc34-0 kkvIvZ']/text()"))
-        price = "".join(item.xpath(".//span[@data-test='current-price']/span/text()"))
-        reviews = "".join(item.xpath(".//span[@class='sc-94776d85-1 ickohb']/text()"))
-        reviews = int(reviews.split()[0]) if reviews else None
-        url_part = "".join(item.xpath(".//a[@class='sc-e851bd29-0 sc-f76ad31b-1 hNVRbT dpaMdN h-display-block ']/@href"))
-        url = f"https://www.target.com{url_part}" if url_part.startswith("/") else url_part
-        return description, price, reviews, url, self.website_source
+        try:
+            name = item.xpath(".//div[@class='styles_truncate__Eorq7 sc-4d32bc34-0 kkvIvZ']/text()")
+            name = "".join(name).strip() if name else "N/A"
+
+            price = item.xpath(".//span[@data-test='current-price']/span/text()")
+            price = "".join(price).strip() if price else "N/A"
+
+            url_part = item.xpath(".//a[@class='sc-e851bd29-0 sc-f76ad31b-1 hNVRbT dpaMdN h-display-block']/@href")
+            url_part = "".join(url_part).strip() if url_part else "N/A"
+            url = f"https://www.target.com{url_part}" if url_part and url_part.startswith("/") else url_part
+
+            return name, price, url, self.website_source
+
+        except Exception as e:
+            print(f"Error occurred while creating search record: {e}")
+            return "N/A", "N/A", "N/A", self.website_source
+
 
     def scroll_the_page(self, driver, scroll_amount=200):
         scroll_amount = scroll_amount

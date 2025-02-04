@@ -3,12 +3,14 @@ import pandas as pd
 import seaborn as sns
 from textblob import TextBlob
 
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 class PriceAnalysis:
     def __init__(self):
         self.df = None
 
-    def load_data(self, file_path: tuple | list):
+    def load_data(self, file_path: tuple | list | str):
         """
         Load a CSV file and merge it into the DataFrame.
         """
@@ -23,19 +25,23 @@ class PriceAnalysis:
 
     def clean_df(self):
         """
-        Clean the DataFrame: strip column names, handle missing values, and clean data.
+        Clean the DataFrame: handle missing values, and clean data.
         """
         if self.df is not None:
-            if 'Price' in self.df.columns:
-                self.df['Price'] = self.df['Price'].replace(r"[\$,]", "", regex=True).astype(float)
-            self.df.dropna()
+            try:
+                if 'Price' in self.df.columns:
+                    self.df['Price'] = self.df['Price'].replace(r"[\$,]", "", regex=True).astype(float)
+                self.df.dropna()
+            except ValueError:
+                pass
+
         else:
             print("No data loaded to clean.")
 
         self.display()
         return self
 
-    def display(self, rows=5):
+    def display(self, rows=10):
         """
         Display the first few rows of the DataFrame.
         """
@@ -45,11 +51,13 @@ class PriceAnalysis:
             print("No data to display.")
         return self
 
-    def save(self, output_file):
+    def save(self, output_file: str):
         """
         Save the cleaned DataFrame to a CSV file.
         """
         if self.df is not None:
+            if not output_file.endswith(".csv"):
+                output_file += ".csv"
             self.df.to_csv(output_file, index=False)
             print(f"Data saved to {output_file}.")
         else:
@@ -182,3 +190,38 @@ class PriceAnalysis:
             plt.show()
         else:
             print("Sentiment or Date column not found.")
+
+
+
+## needs to scrape detail page rather than list page to extract the product description or comments
+
+# class RecommendationSystem:
+#     def __init__(self, file_path):
+#         self.df = pd.read_csv(file_path)
+#         self.vectorizer = TfidfVectorizer(stop_words='english')
+#         self.similarity_matrix = None
+#
+#     def preprocess_data(self):
+#         """
+#         Prepare the dataset by handling missing values and combining relevant columns.
+#         """
+#         # Fill missing values with empty strings
+#         self.df['Reviews'] = self.df['Reviews'].fillna('')
+#         self.df['Product Description'] = self.df['Product Description'].fillna('')
+#
+#         # Combine features for recommendation
+#         self.df['Combined Features'] = self.df['Product Name'] + ' ' + self.df['Product Description'] + ' ' + self.df[
+#             'Reviews']
+#         return self
+#
+#     def calculate_similarity(self):
+#         """
+#         Calculate cosine similarity between products based on combined features.
+#         """
+#         # Vectorize the combined features
+#         feature_matrix = self.vectorizer.fit_transform(self.df['Combined Features'])
+#
+#         # Calculate cosine similarity
+#         self.similarity_matrix = cosine_similarity(feature_matrix, feature_matrix)
+#         return self
+
