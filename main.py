@@ -2,7 +2,7 @@ from e_commerce import Amazon, Ebay
 from formating import ProductFormat
 from store_data import SaveData
 
-search_key = "dell laptop"
+search_key = "air fryer"
 
 amazon = Amazon()
 ebay = Ebay()

@@ -9,7 +9,7 @@ class SaveData:
 
     def save_to_csv(self, file_name: str, header: list, records: list[tuple], mode="w"):
         platform = records[0][-1].lower()
-        file_name = file_name.replace(" ", "_").lower() + "_" + platform
+        file_name = file_name.replace(" ", "_").lower()
 
         with open(f"{file_name}.csv", mode, newline='', encoding='utf-8') as f:
             if mode == "w":
@@ -99,7 +99,7 @@ class SaveData:
         data[file_name] = result
         platform = records[0][-1]
 
-        output_file = file_name.replace(" ", "_") + "_" + platform
+        output_file = file_name.replace(" ", "_")
 
         with open(f"{output_file.lower()}.json", "w") as file:
             json.dump(data, file, indent=4)

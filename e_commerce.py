@@ -7,8 +7,6 @@ from lxml import html
 from selenium import webdriver
 from selenium.common.exceptions import *
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
 
 from webdriver import Webdriver
 
@@ -41,7 +39,7 @@ class Amazon:
         self.website_source = "Amazon"
         self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.5938.132 Safari/537.36"
         self.webdriver = Webdriver()
-        self.header_row = ["ProductName", "Price", "Rating", "ReviewCount", "Url", "Platform"]
+        self.header_row = ["ProductName", "Price", "Url", "Platform"]
 
     # filter by price
 
@@ -72,6 +70,7 @@ class Amazon:
         except AttributeError:
             return "N/A"
 
+
         return name, price, url, self.website_source
 
     def scrape_amazon(self, search_term: str, headless=False) -> list[tuple]:
@@ -91,7 +90,7 @@ class Amazon:
                 results = soup.find_all('div', {'data-component-type': 's-search-result'})
                 for item in results:
                     record = self.extract_record(item)
-                    if is_valid_price(record[1]):
+                    if record:
                         records.append(record)
 
                 url = self.get_next_page_url(driver)
@@ -101,6 +100,7 @@ class Amazon:
 
         except Exception as e:
             print(f"Error during scraping: {e}")
+            self.scrape_amazon(search_term, headless=headless)
 
         finally:
             driver.quit()
@@ -115,30 +115,31 @@ class Ebay:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.5938.132 Safari/537.36'
         }
         self.website_source = "Ebay"
-        self.header_row = ["ProductName", "SubTiltle", "Rating", "Price", "trendingPrice", "Url", "Platform"]
+        self.header_row = ["ProductName", "Price", "Url", "Platform"]
 
     def get_page_items(self, tree) -> list:
         return tree.xpath("//ul[contains(@class, 'srp-results')]/li[contains(@class, 's-item')]") or []
 
     def create_search_record(self, item):
-
         try:
+            # Extract the title
             title = item.xpath(".//div[@class='s-item__title']/span/text()")
             title = "".join(title).strip() if title else "N/A"
 
+            # Extract the price(s)
             item_price = item.xpath(".//span[@class='s-item__price']/text()")
-            item_price = "".join(item_price[1]) if len(item_price) > 1 else "".join(item_price).strip()
+            item_price = "".join(item_price[0]) if len(item_price) > 1 else "".join(item_price).strip()
 
+            # Extract the item link
             item_link = item.xpath(".//a[@class='s-item__link']/@href")
             item_link = "".join(item_link).strip() if item_link else "N/A"
+
             return title, item_price, item_link, self.website_source
 
         except Exception as e:
-
+            # Log the error and return default values
             print(f"Error occurred while creating search record: {e}")
-            return "N/A", "N/A", "N/A", self.website_source
-
-
+            return "N/A", "N/A", "None", "None", "N/A", self.website_source
     def get_next_page(self, tree):
         return "".join(tree.xpath("//a[@class='pagination__next icon-link']/@href")).strip() or None
 
@@ -156,7 +157,7 @@ class Ebay:
                 for item in items:
                     record = self.create_search_record(item)
                     if record:
-                        if is_valid_price(record[1]):
+                        if record:
                             page_data.append(record)
 
                 search_url = self.get_next_page(etree)
@@ -165,90 +166,4 @@ class Ebay:
                 print(f"Error fetching URL {search_url}: {e}")
                 continue
         return page_data
-
-
-class Target:
-    def __init__(self):
-        self.URL = "https://www.target.com/s?searchTerm={}"
-        self.website_source = "Target"
-        self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.5938.132 Safari/537.36"
-        self.webdriver = Webdriver()
-        self.header_row = ["ProductName", "Price", "Rating", "Url", "Platform"]
-
-
-    def get_page_items(self, tree) -> list:
-        container = tree.xpath("//section[contains(@class, 'sc-e0eaa558-1 haoIOG')]")
-        if container:
-            return container[0].xpath(".//div[@class='sc-5da3fdcc-0 ksJpxP']/div")
-        else:
-            return []
-
-    def create_search_record(self, item):
-        try:
-            name = item.xpath(".//div[@class='styles_truncate__Eorq7 sc-4d32bc34-0 kkvIvZ']/text()")
-            name = "".join(name).strip() if name else "N/A"
-
-            price = item.xpath(".//span[@data-test='current-price']/span/text()")
-            price = "".join(price).strip() if price else "N/A"
-
-            url_part = item.xpath(".//a[@class='sc-e851bd29-0 sc-f76ad31b-1 hNVRbT dpaMdN h-display-block']/@href")
-            url_part = "".join(url_part).strip() if url_part else "N/A"
-            url = f"https://www.target.com{url_part}" if url_part and url_part.startswith("/") else url_part
-
-            return name, price, url, self.website_source
-
-        except Exception as e:
-            print(f"Error occurred while creating search record: {e}")
-            return "N/A", "N/A", "N/A", self.website_source
-
-
-    def scroll_the_page(self, driver, scroll_amount=200):
-        scroll_amount = scroll_amount
-        while True:
-            driver.execute_script(f"window.scrollBy(0, {scroll_amount});")
-            time.sleep(0.2)
-            scroll_position = driver.execute_script("return window.pageYOffset + window.innerHeight")
-            page_height = driver.execute_script("return document.body.scrollHeight")
-            if scroll_position >= page_height:
-                break
-
-    def get_number_of_pages(self, tree) -> int:
-            num_pages = "".join(tree.xpath('//*[@id="select-custom-button-id"]/span/text()')).split()[3]
-            return int(num_pages)
-
-    def scrape_target(self, keywords: str):
-        url = self.URL.format(keywords.replace(" ", "-"))
-        driver = self.webdriver.initialize_driver(self.user_agent)
-        driver.get(url)
-
-        WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div")))
-        self.scroll_the_page(driver)
-        tree = html.fromstring(driver.page_source)
-        page_data = list()
-        num_pages = self.get_number_of_pages(tree)
-        nao_query = 0
-
-        for num in range(num_pages):
-            items = self.get_page_items(tree)
-            if not items:
-                break
-
-            for item in items:
-                record = self.create_search_record(item)
-                if record[0] or record[1]:
-                    page_data.append(record)
-
-            if num >= (num_pages - 1):
-                driver.close()
-                break
-
-            nao_query += 24
-            driver.get(f"{url}&Nao={nao_query}")
-            WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div")))
-            self.scroll_the_page(driver)
-            tree = html.fromstring(driver.page_source)
-
-        return page_data
-
-
 
